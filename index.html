@@ -146,7 +146,7 @@ flowchart TB
       INJ -- window.postMessage --> CS
     end
 
-    subgraph HIDDEN["Hidden iframe (injected on <all_urls>)"]
+    subgraph HIDDEN["Hidden iframe (injected on all pages, &lt;all_urls&gt;)"]
       REC["recorder.html / recorder.js"]
       WORK["AudioWorkletProcessor<br/>audio-worklet.js<br/>(float32 → PCM16, merge channels)"]
       REC --> WORK
@@ -173,7 +173,7 @@ flowchart TB
       COG["Amazon Cognito<br/>(login + token refresh)"]
       TR["Amazon Transcribe<br/>(streaming speech-to-text)"]
       DB[("Data store<br/>DynamoDB / similar")]
-      BR["Amazon Bedrock<br/>(summarize, Q&A)"]
+      BR["Amazon Bedrock<br/>(summarize, Q&amp;A)"]
       WEBAPP["Main LMA Web App<br/>(CloudFront + web app)"]
       WS --> TR
       TR --> DB
@@ -405,9 +405,7 @@ sequenceDiagram
     <tr><td>DynamoDB / AppSync (typical for this AWS sample family)</td><td><span class="badge inferred">inferred</span></td><td>Transcript storage + live updates to the main web app</td></tr>
   </table>
 
- 
-
-  <h2 id="s11"><span class="num">10</span> DOM observation targets — every platform, exact selectors</h2>
+   <h2 id="s11"><span class="num">11</span> DOM observation targets — every platform, exact selectors</h2>
   <p class="lede">This is the exact list of what each content script attaches a
   <code>MutationObserver</code> / <code>MutationSummary</code> to, which attribute or node type it
   watches, the condition that fires a name extraction, and where the name actually comes from.
