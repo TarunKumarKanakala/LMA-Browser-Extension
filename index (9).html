@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Amazon Live Meeting Assistant — Browser Extension: Complete Architecture</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.0/mermaid.min.js"></script>
+<style>
+  :root{
+    --ink:#241b3d;
+    --sub:#6a5f8c;
+    --line:#ded4f5;
+    --bg:#f6f2ff;
+    --panel:#ffffff;
+    --accent:#7c3aed;
+    --accent2:#0891b2;
+    --warn:#c2410c;
+    --code-bg:#241b3d;
+    --code-fg:#e4d9ff;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    background-image: radial-gradient(circle at 10% 0%, #ede4ff 0%, transparent 45%),
+                       radial-gradient(circle at 95% 20%, #e0f7f7 0%, transparent 40%);
+    background-attachment: fixed;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:980px; margin:0 auto; padding:48px 28px 120px;}
+  header.title{border-bottom:3px solid var(--accent); padding-bottom:22px; margin-bottom:36px;}
+  header.title .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--accent2); margin-bottom:10px; font-weight:700;
+  }
+  h1{font-size:32px; margin:0 0 8px; letter-spacing:-0.01em; color:var(--ink);}
+  header.title .sub{color:var(--sub); font-size:15px; max-width:640px;}
+  h2{
+    font-size:22px; margin:56px 0 16px; padding-bottom:8px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:10px; color:var(--ink);
+  }
+  h2 .num{
+    font-family:var(--mono); color:#fff; font-size:13px; background:var(--accent);
+    padding:2px 9px; border-radius:20px;
+  }
+  h3{font-size:17px; margin:28px 0 10px; color:var(--accent);}
+  p{margin:0 0 14px;}
+  .lede{font-size:16px; color:#333;}
+  .callout{
+    background:#ede4ff; border-left:4px solid var(--accent); padding:14px 18px; border-radius:6px;
+    margin:18px 0; font-size:14.5px; color:#3b2d63;
+  }
+  .callout.warn{background:#ffe9d9; border-left-color:var(--warn); color:#7a2c06;}
+  .diagram{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:20px; margin:18px 0; overflow-x:auto; box-shadow:0 2px 14px rgba(124,58,237,0.08);
+  }
+  .diagram .cap{font-family:var(--mono); font-size:11.5px; color:var(--accent2); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; font-weight:700;}
+  table{width:100%; border-collapse:collapse; margin:16px 0; font-size:14px; background:var(--panel); border-radius:8px; overflow:hidden;}
+  th, td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{font-family:var(--mono); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:#fff; background:var(--accent2); border-bottom:none;}
+  tr:nth-child(even) td{background:#faf7ff;}
+  code{
+    font-family:var(--mono); background:#e9defd; color:#5b21b6; padding:1px 5px; border-radius:4px; font-size:13px;
+  }
+  pre{
+    background:var(--code-bg); color:var(--code-fg); padding:16px 18px; border-radius:8px;
+    overflow-x:auto; font-family:var(--mono); font-size:12.8px; line-height:1.55; margin:14px 0;
+  }
+  pre code{background:none; padding:0; color:inherit;}
+  pre.mermaid{
+    background:#faf7ff !important; color:var(--ink) !important;
+    border:1px solid var(--line); padding:10px;
+  }
+  ul, ol{margin:0 0 14px; padding-left:22px;}
+  li{margin-bottom:6px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr;}}
+  .badge{
+    display:inline-block; font-family:var(--mono); font-size:11px; padding:2px 8px;
+    border-radius:20px; background:#e9defd; color:var(--sub); margin-right:6px;
+  }
+  .badge.confirmed{background:#d3f5ee; color:#0f766e;}
+  .badge.inferred{background:#ffe9d9; color:var(--warn);}
+  .toc{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px 24px; box-shadow:0 2px 14px rgba(124,58,237,0.08);}
+  .toc ol{margin:0; padding-left:20px;}
+  .toc a{color:var(--accent2); text-decoration:none; font-weight:500;}
+  .toc a:hover{color:var(--accent); text-decoration:underline;}
+  footer{margin-top:70px; padding-top:20px; border-top:1px solid var(--line); font-size:12.5px; color:var(--sub);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="title">
+    <div class="eyebrow">Reverse-Engineered Architecture Reference</div>
+    <h1>Amazon Live Meeting Assistant — Browser Extension</h1>
+    <div class="sub">Complete component breakdown, audio capture pipeline, DOM-based speaker
+    detection, and the AWS backend it talks to — with diagrams. Based directly on the source
+    in <code>lma-browser-extension-stack.zip</code>, plus your live <code>lma_config.json</code>.</div>
+  </header>
+
+  <div class="toc">
+    <strong style="font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--sub);">Contents</strong>
+    <ol>
+      <li><a href="#s1">What this actually is</a></li>
+      <li><a href="#s2">Full system architecture diagram</a></li>
+      <li><a href="#s3">Chrome extension internals (manifest, contexts)</a></li>
+      <li><a href="#s4">Audio capture pipeline (mic + tab audio)</a></li>
+      <li><a href="#s5">Speaker detection — Zoom vs. Teams</a></li>
+      <li><a href="#s6">End-to-end sequence: a 6-person meeting</a></li>
+      <li><a href="#s7">Wire format — what goes over the WebSocket</a></li>
+      <li><a href="#s8">Your live deployment (decoded config)</a></li>
+      <li><a href="#s9">AWS services — confirmed vs. inferred</a></li>
+      
+    </ol>
+  </div>
+
+  <h2 id="s1"><span class="num">01</span> What this actually is</h2>
+  <p class="lede">This zip is <strong>only the browser-extension half</strong> of AWS's sample
+  solution "Live Meeting Assistant" (LMA). It is a Chrome (Manifest V3) extension that sits in a
+  meeting tab, watches the meeting UI to figure out who's talking, captures raw audio, and streams
+  both up to an AWS backend over a WebSocket. It contains <strong>no speech recognition, no
+  voice-print recognition, and no AI</strong> itself — all of that lives in a separate backend
+  CloudFormation stack that this extension only connects to via a URL baked into
+  <code>lma_config.json</code> at build time.</p>
+
+  <div class="callout">
+    <strong>Two completely separate mechanisms are easy to conflate:</strong><br>
+    1) <strong>Audio capture</strong> — uses the browser's screen/tab-share permission dialog, purely to grab tab audio.<br>
+    2) <strong>Speaker-name detection</strong> — reads the meeting app's own on-screen "who's talking" highlight from the DOM.<br>
+    They run independently and are not derived from one another.
+  </div>
+
+  <h2 id="s2"><span class="num">02</span> Full system architecture</h2>
+  <div class="diagram">
+    <div class="cap">Component map — browser ↔ extension ↔ AWS</div>
+    <pre class="mermaid">
+flowchart TB
+    subgraph TAB["Meeting Tab (e.g. teams.microsoft.com)"]
+      DOM["Meeting page DOM<br/>(video tiles, speaking-ring highlight,<br/>aria-labels, names)"]
+      CS["Content script<br/>teams.js / zoom.js / webex.js / meet.js / chime.js<br/>+ mutation-summary.js"]
+      INJ["Injected page-context script<br/>*-injection.js<br/>(reads native page JS vars)"]
+      DOM -- MutationObserver / MutationSummary --> CS
+      INJ -- window.postMessage --> CS
+    end
+
+    subgraph HIDDEN["Hidden iframe (injected on <all_urls>)"]
+      REC["recorder.html / recorder.js"]
+      WORK["AudioWorkletProcessor<br/>audio-worklet.js<br/>(float32 → PCM16, merge channels)"]
+      REC --> WORK
+    end
+
+    subgraph PANEL["Extension Side Panel (React app)"]
+      UI["Capture.tsx / Meeting.tsx<br/>(UI: name, topic, start/stop, mute)"]
+      PIC["ProviderIntegrationContext.tsx<br/>(owns the WebSocket)"]
+      UC["UserContext.tsx<br/>(Cognito OAuth tokens)"]
+      SC["SettingsContext.tsx<br/>(loads lma_config.json)"]
+      UI --> PIC
+      UC --> PIC
+      SC --> UC
+      SC --> PIC
+    end
+
+    CS -- "chrome.runtime.sendMessage<br/>ActiveSpeakerChange / UpdateMetadata / MuteChange" --> PIC
+    REC -- "chrome.runtime.sendMessage<br/>AudioData / SamplingRate" --> PIC
+
+    PIC -- "WSS: JSON control msgs<br/>(START / SPEAKER_CHANGE / END)<br/>+ binary PCM audio" --> WS
+
+    subgraph AWS["AWS Backend (separate stack — not in this zip)"]
+      WS["WebSocket endpoint<br/>(behind CloudFront, /api/v1/ws)"]
+      COG["Amazon Cognito<br/>(login + token refresh)"]
+      TR["Amazon Transcribe<br/>(streaming speech-to-text)"]
+      DB[("Data store<br/>DynamoDB / similar")]
+      BR["Amazon Bedrock<br/>(summarize, Q&A)"]
+      WEBAPP["Main LMA Web App<br/>(CloudFront + web app)"]
+      WS --> TR
+      TR --> DB
+      DB --> BR
+      DB --> WEBAPP
+    end
+
+    UC -- "OAuth via chrome.identity.launchWebAuthFlow" --> COG
+    UI -- "Open in LMA" --> WEBAPP
+    </pre>
+  </div>
+
+  <h2 id="s3"><span class="num">03</span> Chrome extension internals</h2>
+  <p>Manifest V3 extension, side panel UI. Three separate JavaScript execution contexts matter:</p>
+  <table>
+    <tr><th>Context</th><th>Files</th><th>Can see</th><th>Job</th></tr>
+    <tr>
+      <td>Content script</td>
+      <td><code>teams.js</code>, <code>zoom.js</code>, <code>webex.js</code>, <code>meet.js</code>, <code>chime.js</code></td>
+      <td>The meeting page's DOM (not its JS variables)</td>
+      <td>Scrape names, watch for speaking highlight, mute state, participant join/leave</td>
+    </tr>
+    <tr>
+      <td>Injected page script</td>
+      <td><code>zoom-injection.js</code> etc.</td>
+      <td>The page's actual JS runtime (e.g. a global <code>MeetingConfig</code> var)</td>
+      <td>Pull data content scripts can't reach, relay via <code>window.postMessage</code></td>
+    </tr>
+    <tr>
+      <td>Hidden recorder iframe</td>
+      <td><code>recorder.html</code>, <code>recorder.js</code>, <code>audio-worklet.js</code></td>
+      <td>Nothing about the meeting UI — pure media APIs</td>
+      <td>Capture mic + tab audio, encode to PCM, hand off to the side panel</td>
+    </tr>
+    <tr>
+      <td>Side panel (React)</td>
+      <td><code>src/*.tsx</code></td>
+      <td>Nothing about the page directly — only what's relayed via <code>chrome.runtime</code></td>
+      <td>Auth, UI, own the WebSocket, format + send everything to AWS</td>
+    </tr>
+  </table>
+  <p><code>service-worker.js</code> is 4 lines — its only job is telling Chrome to open the side
+  panel when the toolbar icon is clicked. It does no message routing itself.</p>
+
+  <h2 id="s4"><span class="num">04</span> Audio capture pipeline</h2>
+  <div class="diagram">
+    <div class="cap">Mic + tab audio → PCM → WebSocket</div>
+    <pre class="mermaid">
+sequenceDiagram
+    participant SidePanel as Side Panel (React)
+    participant CS as Content script
+    participant IFrame as Hidden recorder iframe
+    participant Browser as Browser media APIs
+    participant WS as AWS WebSocket
+
+    SidePanel->>CS: chrome.runtime "StartTranscription"
+    CS->>IFrame: relay "StartTranscription"
+    IFrame->>Browser: getDisplayMedia({video:true, audio:true})
+    Note right of Browser: Native "Choose what to share"<br/>picker — ONLY used to grab<br/>tab/system audio, video ignored
+    Browser-->>IFrame: displayStream (tab audio)
+    IFrame->>Browser: getUserMedia({audio:true})
+    Browser-->>IFrame: micStream (your mic)
+    IFrame->>IFrame: convert both to mono,<br/>merge into 2-channel signal<br/>(ch0 = mic, ch1 = tab audio)
+    IFrame->>IFrame: AudioWorklet: float32 → PCM16,<br/>interleave channels
+    IFrame->>SidePanel: chrome.runtime "AudioData"<br/>(base64 PCM)
+    SidePanel->>SidePanel: decode base64,<br/>apply mute/pause (zero channel)
+    SidePanel->>WS: raw binary PCM frame
+    </pre>
+  </div>
+  <div class="callout">
+    Sample rate requested: <code>8000 Hz</code>. Channel 0 = your microphone. Channel 1 = tab/system
+    audio (everyone else's voice, as played through your speakers). This is why the "share screen"
+    prompt appears even though nobody is trying to see your screen.
+  </div>
+
+  <h2 id="s5"><span class="num">05</span> Speaker detection — Zoom vs. Teams</h2>
+  <p>Neither platform uses audio analysis. Both watch the platform's <strong>own existing UI
+  highlight</strong> for "who is speaking right now" and read the name sitting next to it.</p>
+
+  <div class="grid2">
+    <div class="diagram">
+      <div class="cap">Zoom (zoom.js)</div>
+      <pre class="mermaid">
+flowchart TD
+    A["MutationSummary watches:<br/>.speaker-active-container__video-frame<br/>.speaker-bar-container__video-frame--active<br/>.gallery-video-container__video-frame--active"]
+    A -->|element added| B["getNameForVideoAvatar(el)"]
+    B --> C1[".video-avatar__avatar-footer span"]
+    C1 -->|not found| C2[".video-avatar__avatar-name"]
+    C2 -->|not found| C3[".video-avatar__avatar-img alt"]
+    C1 --> D["chrome.runtime.sendMessage<br/>ActiveSpeakerChange"]
+    C2 --> D
+    C3 --> D
+      </pre>
+    </div>
+    <div class="diagram">
+      <div class="cap">Teams (teams.js)</div>
+      <pre class="mermaid">
+flowchart TD
+    A["MutationObserver on stage container<br/>watches attribute: class<br/>on div[data-tid=voice-level-stream-outline]"]
+    A -->|class GAINS 'vdi-frame-occlusion'| B["walk up to parent's aria-label<br/>e.g. 'Jane Doe, Muted'"]
+    B --> C["split on comma → take first part"]
+    C --> D["chrome.runtime.sendMessage<br/>ActiveSpeakerChange"]
+    A -->|class LOSES 'vdi-frame-occlusion'| E["re-scan DOM for any other<br/>tile still showing the class"]
+    E -->|found one| C
+    E -->|none found| F["send active_speaker = 'n/a'"]
+      </pre>
+    </div>
+  </div>
+  <p><strong>Teams Live</strong> (<code>teams-live.js</code>, for <code>teams.live.com</code>) uses
+  the identical technique with different CSS class names (<code>fui-Primitive ___19upu4n</code> /
+  <code>___s78zj80</code>) because the consumer Teams UI ships different internals, and reads your
+  own name from <code>localStorage["msal.activeUserProfile"]</code> instead of clicking an avatar
+  button.</p>
+
+  <h3>How "you" (host) differ from the other 5 people</h3>
+  <table>
+    <tr><th>Who</th><th>How identified</th><th>Sent as</th></tr>
+    <tr>
+      <td>You (the extension user)</td>
+      <td>Scraped once via your own avatar/profile element (Teams: <code>me-control-avatar-trigger</code> →
+      fallback chain of 3 more selectors), or typed manually into the form</td>
+      <td><code>agentId</code> — fixed for the whole call</td>
+    </tr>
+    <tr>
+      <td>Other participants</td>
+      <td>Whichever name text is attached to the tile currently showing the "speaking" highlight,
+      re-read fresh every time the highlight moves</td>
+      <td><code>activeSpeaker</code> — overwritten on every <code>SPEAKER_CHANGE</code> event</td>
+    </tr>
+  </table>
+  <p>There is no persistent participant ID or roster tracking who the "5 others" are as a set —
+  only a rolling "whoever is highlighted right now" string, sent as a timestamped event each time
+  it changes.</p>
+
+  <h2 id="s6"><span class="num">06</span> End-to-end: a meeting with you + 5 others</h2>
+  <div class="diagram">
+    <div class="cap">Full sequence, Teams example</div>
+    <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    participant You
+    participant Panel as Side Panel
+    participant CS as teams.js
+    participant Rec as Recorder iframe
+    participant WS as AWS WebSocket
+
+    You->>Panel: Open side panel, log in (Cognito)
+    Panel->>CS: FetchMetadata
+    CS-->>Panel: your name + meeting topic
+    You->>Panel: Click "Start Listening" → confirm disclaimer
+    Panel->>CS: StartTranscription
+    Panel->>Rec: StartTranscription (relayed)
+    Rec->>You: permission prompts (share tab audio + mic)
+    Rec-->>Panel: SamplingRate
+    Panel->>WS: JSON {callEvent: START, agentId: you, callId,...}
+    loop while meeting runs
+        Rec-->>Panel: AudioData (continuous PCM)
+        Panel->>WS: binary audio frame
+        CS-->>Panel: ActiveSpeakerChange (any of the 5 others, or you)
+        Panel->>WS: JSON {callEvent: SPEAKER_CHANGE, activeSpeaker: name}
+    end
+    You->>Panel: Click "Stop Listening"
+    Panel->>WS: JSON {callEvent: END}
+    Panel->>Rec: StopTranscription
+    Rec->>Rec: stop tracks, close AudioContext
+    Panel->>WS: close socket
+    </pre>
+  </div>
+
+  <h2 id="s7"><span class="num">07</span> Wire format — what actually goes over the WebSocket</h2>
+  <pre><code>// Text frame — sent on start, on every speaker change, and on stop
+{
+  "callEvent": "SPEAKER_CHANGE",     // START | SPEAKER_CHANGE | END
+  "agentId": "&lt;your name&gt;",
+  "fromNumber": "+9165551234",       // hardcoded placeholder (call-center data model reused)
+  "toNumber": "+8001112222",         // hardcoded placeholder
+  "callId": "&lt;Meeting Topic&gt; - &lt;yyyy-mm-dd-hh:mm:ss.mmm&gt;",
+  "samplingRate": 8000,
+  "activeSpeaker": "Jane Doe"
+}
+
+// Binary frames — continuous, interleaved 16-bit PCM
+// channel 0 = your mic, channel 1 = tab/system audio, 8kHz</code></pre>
+  <p>Auth travels as query params on the socket URL itself, not as a header (WebSocket handshakes
+  can't carry custom auth headers from a browser):</p>
+  <pre><code>wss://&lt;wssEndpoint&gt;?authorization=Bearer &lt;access_token&gt;&id_token=&lt;id_token&gt;&refresh_token=&lt;refresh_token&gt;</code></pre>
+
+  <h2 id="s8"><span class="num">08</span> Your live deployment, decoded</h2>
+  <table>
+    <tr><th>Field</th><th>Value</th><th>What it tells you</th></tr>
+    <tr>
+      <td><code>wssEndpoint</code></td>
+      <td><code>wss://dz09ym3solsvg.cloudfront.net/api/v1/ws</code></td>
+      <td>WebSocket traffic is proxied through <strong>CloudFront</strong> to a backend
+      (likely API Gateway WebSocket or an internal service) — CloudFront supports WS pass-through.</td>
+    </tr>
+    <tr>
+      <td><code>cognitoDomain</code></td>
+      <td><code>lmasa-...auth.us-east-1.amazoncognito.com</code></td>
+      <td>Region = <code>us-east-1</code>. Stack name prefix looks like <code>lmasa</code>.</td>
+    </tr>
+    <tr>
+      <td><code>cloudfrontEndpoint</code></td>
+      <td><code>https://d37y4bgk8vdlu.cloudfront.net/</code></td>
+      <td>The separate main LMA web app — where "Open in LMA" sends you, at <code>/#/calls/&lt;callId&gt;</code>.</td>
+    </tr>
+    <tr>
+      <td><code>clientId</code></td>
+      <td><code>5p2g7f97mp476fgujtn433cd7s</code></td>
+      <td>Cognito App Client ID used for the OAuth flow — not secret by design, but still
+      account-specific; treat casually-shared config like this with the same care as any credential.</td>
+    </tr>
+  </table>
+
+  <h2 id="s9"><span class="num">09</span> AWS services — confirmed vs. inferred</h2>
+  <p><span class="badge confirmed">confirmed</span> = directly present in <code>template.yaml</code> in this zip.
+  <span class="badge inferred">inferred</span> = referenced only via config/parameter, actual backend not included here.</p>
+  <table>
+    <tr><th>Service</th><th>Status</th><th>Role</th></tr>
+    <tr><td>AWS CodeBuild</td><td><span class="badge confirmed">confirmed</span></td><td><code>npm install && npm run build</code>, bakes real endpoints into <code>lma_config.json</code>, zips the extension</td></tr>
+    <tr><td>Amazon S3</td><td><span class="badge confirmed">confirmed</span></td><td>Source bucket + destination bucket hosting the built <code>.zip</code></td></tr>
+    <tr><td>Amazon CloudFront</td><td><span class="badge confirmed">confirmed</span></td><td>Serves the extension zip/config; cache invalidated after each build; also proxies the WebSocket in your deployment</td></tr>
+    <tr><td>AWS Lambda</td><td><span class="badge confirmed">confirmed</span></td><td>CloudFormation custom-resource function that triggers + polls the CodeBuild job</td></tr>
+    <tr><td>CloudWatch Logs / KMS / IAM</td><td><span class="badge confirmed">confirmed</span></td><td>Logging, encryption, least-privilege roles for the above</td></tr>
+    <tr><td>Amazon Cognito</td><td><span class="badge inferred">inferred</span></td><td>User pool + hosted UI for login/token refresh</td></tr>
+    <tr><td>WebSocket API</td><td><span class="badge inferred">inferred</span></td><td>Receives JSON control events + binary audio</td></tr>
+    <tr><td>Amazon Transcribe</td><td><span class="badge inferred">inferred</span></td><td>Streaming speech-to-text on the incoming audio</td></tr>
+    <tr><td>Amazon Bedrock</td><td><span class="badge inferred">inferred</span></td><td>Summarization + "ask a question" chat, per the UI's own labels</td></tr>
+    <tr><td>DynamoDB / AppSync (typical for this AWS sample family)</td><td><span class="badge inferred">inferred</span></td><td>Transcript storage + live updates to the main web app</td></tr>
+  </table>
+
+  
+</div>
+<script>
+  mermaid.initialize({
+    startOnLoad: true, theme: 'base', securityLevel: 'loose',
+    themeVariables: {
+      fontFamily: "-apple-system, Segoe UI, sans-serif",
+      fontSize: "13px",
+      background: "#faf7ff",
+      primaryColor: "#ede4ff",
+      primaryTextColor: "#241b3d",
+      primaryBorderColor: "#7c3aed",
+      lineColor: "#7c3aed",
+      secondaryColor: "#d3f5ee",
+      tertiaryColor: "#fff",
+      actorBkg: "#ede4ff",
+      actorBorder: "#7c3aed",
+      actorTextColor: "#241b3d",
+      actorLineColor: "#a78bda",
+      signalColor: "#5b21b6",
+      signalTextColor: "#241b3d",
+      labelBoxBkgColor: "#d3f5ee",
+      labelBoxBorderColor: "#0891b2",
+      labelTextColor: "#241b3d",
+      loopTextColor: "#241b3d",
+      noteBkgColor: "#fff4e0",
+      noteTextColor: "#7a2c06",
+      noteBorderColor: "#c2410c",
+      activationBorderColor: "#7c3aed",
+      activationBkgColor: "#ede4ff",
+      sequenceNumberColor: "#ffffff",
+      edgeLabelBackground: "#faf7ff",
+      clusterBkg: "#f6f2ff",
+      clusterBorder: "#a78bda",
+      nodeTextColor: "#241b3d"
+    }
+  });
+</script>
+</body>
+</html>
