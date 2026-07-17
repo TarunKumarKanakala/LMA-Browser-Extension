@@ -112,7 +112,8 @@
       <li><a href="#s7">Wire format — what goes over the WebSocket</a></li>
       <li><a href="#s8">Your live deployment (decoded config)</a></li>
       <li><a href="#s9">AWS services — confirmed vs. inferred</a></li>
-      
+
+      <li><a href="#s11">DOM observation targets — every platform, exact selectors</a></li>
     </ol>
   </div>
 
@@ -404,7 +405,187 @@ sequenceDiagram
     <tr><td>DynamoDB / AppSync (typical for this AWS sample family)</td><td><span class="badge inferred">inferred</span></td><td>Transcript storage + live updates to the main web app</td></tr>
   </table>
 
-  
+ 
+
+  <h2 id="s11"><span class="num">10</span> DOM observation targets — every platform, exact selectors</h2>
+  <p class="lede">This is the exact list of what each content script attaches a
+  <code>MutationObserver</code> / <code>MutationSummary</code> to, which attribute or node type it
+  watches, the condition that fires a name extraction, and where the name actually comes from.
+  Use this if you're replicating the logic, debugging a platform where detection stopped working,
+  or adapting it to a UI redesign.</p>
+
+  <h3>Zoom (<code>zoom.js</code>)</h3>
+  <table>
+    <tr><th>Watches</th><th>Element(s)</th><th>Fires on</th><th>Name extraction</th></tr>
+    <tr>
+      <td>Active speaker</td>
+      <td><code>.speaker-active-container__video-frame</code><br>
+          <code>.speaker-bar-container__video-frame--active</code><br>
+          <code>.gallery-video-container__video-frame--active</code></td>
+      <td>Element added to DOM</td>
+      <td>Within that element: <code>.video-avatar__avatar-footer span[role="none"]</code> →
+      fallback <code>.video-avatar__avatar-name</code> → fallback
+      <code>.video-avatar__avatar-img</code> alt text</td>
+    </tr>
+    <tr>
+      <td>Participants join/leave</td>
+      <td><code>.video-avatar__avatar</code></td>
+      <td>Element added / removed</td>
+      <td>Same <code>getNameForVideoAvatar()</code> helper as above</td>
+    </tr>
+    <tr>
+      <td>Mute state</td>
+      <td><code>.video-avatar__avatar-footer--view-mute-computer</code>,
+      <code>.footer-button-base__img-layer</code>, <code>.footer-button-base__button-label</code></td>
+      <td>Any mutation</td>
+      <td>N/A — checks if any <code>.footer-button-base__button-label</code> text equals <code>"Unmute"</code></td>
+    </tr>
+  </table>
+
+  <h3>Microsoft Teams — work/school (<code>teams.js</code>)</h3>
+  <table>
+    <tr><th>Watches</th><th>Element(s)</th><th>Fires on</th><th>Name extraction</th></tr>
+    <tr>
+      <td>Active speaker</td>
+      <td>Container: <code>div[aria-label="Shared content view"][role=main]</code>,
+      fallback <code>div[data-testid="stage-segment-wrapper"][data-test-segment-type="central"]</code>.
+      Watched attribute: <code>class</code> on <code>div[data-tid="voice-level-stream-outline"]</code></td>
+      <td><code>class</code> gains <code>vdi-frame-occlusion</code> (speaking starts);
+      loses it (speaking stops → re-scan for another tile with the class)</td>
+      <td>Parent element's <code>aria-label</code>, text before first comma
+      (e.g. <code>"Jane Doe, Muted"</code> → <code>"Jane Doe"</code>)</td>
+    </tr>
+    <tr>
+      <td>Roster changes</td>
+      <td><code>li[role="presentation"]</code> inside the same container</td>
+      <td>Node added / removed → re-attaches the whole observer</td>
+      <td>N/A (triggers re-scan, doesn't itself extract a name)</td>
+    </tr>
+    <tr>
+      <td>Your own name</td>
+      <td><code>button[data-tid="me-control-avatar-trigger"]</code> (click it, then read)
+      <code>span[data-tid="me-control-displayname"]</code></td>
+      <td>On <code>FetchMetadata</code> request</td>
+      <td>3 fallbacks in order: <code>div[data-tid="participant-info"] .fui-StyledText span</code> →
+      <code>div[role="group"][aria-labelledby^="control-message-"] span.fui-StyledText</code> →
+      regex on <code>div[data-tid="myself-video"]</code>'s <code>aria-label</code>
+      (<code>/Myself video, ([^,]+)/</code>)</td>
+    </tr>
+    <tr>
+      <td>Mute state</td>
+      <td>Any element matching <code>[aria-label*="Mute"], [aria-label*="Unmute"]</code></td>
+      <td><code>aria-label</code> attribute changes</td>
+      <td>N/A — checks whether the label contains <code>"Unmute"</code> or <code>"Mute"</code></td>
+    </tr>
+  </table>
+
+  <h3>Microsoft Teams Live — consumer (<code>teams-live.js</code>)</h3>
+  <div class="callout">Same technique as work/school Teams, different generated class names because
+  the consumer UI build is different. Active-ring classes:
+  <code>fui-Primitive ___19upu4n</code> (active) / <code>fui-Primitive ___s78zj80</code> (inactive)
+  vs. work Teams' <code>fui-Avatar r81b29z ___l339ri0</code> / <code>___1okzwt8</code>.
+  Own name is read from <code>localStorage.getItem("msal.activeUserProfile")</code> (parsed JSON,
+  <code>.name</code> field) instead of clicking an avatar button.</div>
+
+  <h3>Cisco Webex (<code>webex.js</code>)</h3>
+  <table>
+    <tr><th>Watches</th><th>Element(s)</th><th>Fires on</th><th>Name extraction</th></tr>
+    <tr>
+      <td>Active speaker</td>
+      <td>Container: <code>main#main-content</code>. Watched attribute: <code>aria-label</code>
+      on any descendant <code>div</code></td>
+      <td><code>aria-label</code> starts with <code>"Unmuted"</code> and didn't before (speaking
+      starts); stops matching (speaking stops → re-query <code>div[aria-label^="Unmuted"]</code>
+      for the next one)</td>
+      <td>Same element's <code>data-test</code> attribute, with the suffix
+      <code>-participant-label</code> stripped off</td>
+    </tr>
+    <tr>
+      <td>Your own name</td>
+      <td><code>#crossLaunchData</code> script tag (JSON, <code>.currentUser.displayName</code>);
+      fallback: <code>localStorage["webex.user"]</code> (JSON, <code>.name</code>)</td>
+      <td>On <code>FetchMetadata</code></td>
+      <td>Also checks inside an <code>iframe#unified-webclient-iframe</code> if Webex is embedded that way</td>
+    </tr>
+    <tr>
+      <td>Mute state</td>
+      <td><code>button[data-test="microphone-button"]</code> (or same, inside the webclient iframe)</td>
+      <td><code>aria-label</code> attribute changes</td>
+      <td>N/A — checks for the substring <code>"currently muted"</code> / <code>"currently unmuted"</code></td>
+    </tr>
+  </table>
+
+  <h3>Google Meet (<code>meet.js</code>)</h3>
+  <table>
+    <tr><th>Watches</th><th>Element(s)</th><th>Fires on</th><th>Name extraction</th></tr>
+    <tr>
+      <td>Active speaker</td>
+      <td>Container: parent of any <code>div[data-participant-id]</code>. Watched:
+      <code>class</code> attribute on elements with <code>jscontroller="ES310d"</code></td>
+      <td><code>class</code> changes <em>and</em> the element is currently visible
+      (<code>offsetParent !== null</code>)</td>
+      <td>Walks up to the closest <code>div[data-participant-id]</code>, then reads
+      <code>span.notranslate</code> inside a <code>[data-tooltip-id][data-tooltip-anchor-boundary-type]</code>
+      element</td>
+    </tr>
+    <tr>
+      <td>Your own name</td>
+      <td><code>script.ds:8</code> (Meet's own embedded JSON payload)</td>
+      <td>On <code>FetchMetadata</code></td>
+      <td>Regex-extracted from the script's JS-array text: <code>/data:\[(.+?)\]/</code>, then
+      index <code>[6]</code> of the comma-split array — fragile, tied to Meet's internal data shape</td>
+    </tr>
+    <tr>
+      <td>Mute state</td>
+      <td><code>button[data-mute-button]</code></td>
+      <td><code>data-is-muted</code> attribute changes</td>
+      <td>N/A — reads the attribute value directly (<code>"true"</code>/<code>"false"</code>)</td>
+    </tr>
+  </table>
+
+  <h3>Amazon Chime (<code>chime.js</code>)</h3>
+  <table>
+    <tr><th>Watches</th><th>Element(s)</th><th>Fires on</th><th>Name extraction</th></tr>
+    <tr>
+      <td>Active speaker</td>
+      <td>Parent of <code>.activeSpeakerCell</code> elements</td>
+      <td><code>characterData</code> mutation (i.e. the text node itself changes — Chime rewrites
+      the name text directly rather than toggling a class)</td>
+      <td>The mutated text node's data itself, filtered to exclude text containing
+      <code>"Mute"</code>, <code>"Unmute my microphone"</code>, or <code>"Only they may"</code>,
+      and skipped if the value is literally <code>"No one"</code></td>
+    </tr>
+    <tr>
+      <td>Your own name</td>
+      <td><code>localStorage["AmazonChimeExpressSession"]</code> (double-JSON-encoded,
+      <code>.fullName</code>)</td>
+      <td>On <code>FetchMetadata</code></td>
+      <td>Meeting title: <code>[data-test-id="meetingTitle"]</code>, fallback = page
+      <code>document.title</code> with the <code>"Amazon Chime: "</code> prefix stripped</td>
+    </tr>
+    <tr>
+      <td>Mute state</td>
+      <td><code>#audio</code> element</td>
+      <td>Any mutation on it</td>
+      <td>N/A — checks whether its text content contains <code>"Unmute"</code></td>
+    </tr>
+  </table>
+
+  <div class="callout warn">
+    <strong>Common thread across all six:</strong> every single one relies on the meeting platform's
+    own existing "who's speaking" visual cue (a highlighted ring, an <code>aria-label</code> change,
+    a class toggle, or a rewritten text node) that the platform already renders for accessibility/UX
+    reasons. None of them do acoustic analysis — if a platform ships a UI redesign that renames a
+    class or restructures the DOM, detection silently breaks until the selectors are updated to match.
+  </div>
+
+  <footer>
+    Compiled from static analysis of <code>lma-browser-extension-stack.zip</code> (manifest.json,
+    template.yaml, all content scripts, recorder pipeline, and React context providers) plus your
+    live <code>lma_config.json</code>. Sections marked "inferred" describe the separate backend
+    stack this extension connects to, which is not included in this zip.
+  </footer>
+
 </div>
 <script>
   mermaid.initialize({
